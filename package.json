@@ -1,11 +1,12 @@
 {
   "name": "aura-dual-core-twin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-vinext-static-cache.mjs",
     "dev": "bash scripts/start-local.sh",
     "dev:web": "node scripts/run-vinext.mjs dev",
     "dev:camera": "node scripts/lan-camera-server.mjs",

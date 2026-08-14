@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-:root { --ink:#e8f2f7; --muted:#78909d; --panel:#0b131bd9; --line:#23323c; --cyan:#6ed2e7; --gold:#e8c165; --red:#ff5a52; --blue:#52aaff; color-scheme:dark; }
+:root { --font-geist-sans:"Segoe UI","PingFang SC",sans-serif; --font-geist-mono:"Cascadia Mono","SFMono-Regular",monospace; --ink:#e8f2f7; --muted:#78909d; --panel:#0b131bd9; --line:#23323c; --cyan:#6ed2e7; --gold:#e8c165; --red:#ff5a52; --blue:#52aaff; color-scheme:dark; }
 * { box-sizing:border-box; }
 html,body { margin:0; min-height:100%; background:#05090d; color:var(--ink); }
 body { font-family:var(--font-geist-sans),"PingFang SC",sans-serif; background:radial-gradient(circle at 50% -20%,#162733 0,#071018 42%,#04080c 100%); }
