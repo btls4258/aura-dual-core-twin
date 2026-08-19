@@ -4,10 +4,13 @@ export type CardType = "move" | "pulse" | "beam" | "pierce" | "repair" | "shield
 export type CardDefinition = {
   type: CardType;
   name: string;
+  nameEn: string;
   functionName: string;
+  functionNameEn: string;
   cost: number;
   count: number;
   description: string;
+  descriptionEn: string;
   range?: number;
   damage?: number;
 };
@@ -57,13 +60,13 @@ export type GameState = {
 };
 
 export const CARD_DEFINITIONS: CardDefinition[] = [
-  { type: "move", name: "极昼疾行", functionName: "移动", cost: 1, count: 8, range: 70, description: "沿合法规划路径移动，单次距离最多 70 cm。" },
-  { type: "pulse", name: "曙光脉冲", functionName: "轻型攻击", cost: 1, count: 4, range: 35, damage: 20, description: "35 cm 内造成 20 点伤害。" },
-  { type: "beam", name: "裂空光束", functionName: "中型攻击", cost: 2, count: 3, range: 55, damage: 30, description: "55 cm 内造成 30 点伤害，可被干扰。" },
-  { type: "pierce", name: "天穹贯穿", functionName: "重型攻击", cost: 3, count: 2, range: 75, damage: 45, description: "75 cm 内造成 45 点伤害，可被干扰。" },
-  { type: "repair", name: "曙光再生", functionName: "修复", cost: 2, count: 3, description: "为己方 Aura 或基地恢复 15 点生命。" },
-  { type: "shield", name: "相位壁垒", functionName: "护盾", cost: 2, count: 2, description: "获得 20 点护盾，持续至己方下回合。" },
-  { type: "jam", name: "链路干扰", functionName: "反制", cost: 1, count: 1, description: "抵消一次中型或重型攻击。" },
+  { type: "move", name: "极昼疾行", nameEn: "Polar Rush", functionName: "移动", functionNameEn: "MOVE", cost: 1, count: 8, range: 70, description: "沿合法规划路径移动，单次距离最多 70 cm。", descriptionEn: "Move along a valid path, up to 70 cm." },
+  { type: "pulse", name: "曙光脉冲", nameEn: "Dawn Pulse", functionName: "轻型攻击", functionNameEn: "LIGHT ATTACK", cost: 1, count: 4, range: 35, damage: 20, description: "35 cm 内造成 20 点伤害。", descriptionEn: "Deal 20 damage within 35 cm." },
+  { type: "beam", name: "裂空光束", nameEn: "Rift Beam", functionName: "中型攻击", functionNameEn: "MEDIUM ATTACK", cost: 2, count: 3, range: 55, damage: 30, description: "55 cm 内造成 30 点伤害，可被干扰。", descriptionEn: "Deal 30 damage within 55 cm. Can be jammed." },
+  { type: "pierce", name: "天穹贯穿", nameEn: "Sky Piercer", functionName: "重型攻击", functionNameEn: "HEAVY ATTACK", cost: 3, count: 2, range: 75, damage: 45, description: "75 cm 内造成 45 点伤害，可被干扰。", descriptionEn: "Deal 45 damage within 75 cm. Can be jammed." },
+  { type: "repair", name: "曙光再生", nameEn: "Dawn Renewal", functionName: "修复", functionNameEn: "REPAIR", cost: 2, count: 3, description: "为己方 Aura 或基地恢复 15 点生命。", descriptionEn: "Restore 15 HP to your AURA or base." },
+  { type: "shield", name: "相位壁垒", nameEn: "Phase Barrier", functionName: "护盾", functionNameEn: "SHIELD", cost: 2, count: 2, description: "获得 20 点护盾，持续至己方下回合。", descriptionEn: "Gain 20 shield until your next turn." },
+  { type: "jam", name: "链路干扰", nameEn: "Link Jammer", functionName: "反制", functionNameEn: "COUNTER", cost: 1, count: 1, description: "抵消一次中型或重型攻击。", descriptionEn: "Cancel one medium or heavy attack." },
 ];
 
 const makeDeck = (faction: Faction) => CARD_DEFINITIONS.flatMap((def) =>
@@ -131,7 +134,7 @@ export type CardPayload = { faction?: Faction; type: CardType; instanceId: strin
 
 export function parseCardPayload(raw: string): CardPayload | null {
   const normalized = raw.trim();
-  const namedCard = CARD_DEFINITIONS.find((card) => card.name === normalized);
+  const namedCard = CARD_DEFINITIONS.find((card) => card.name === normalized || card.nameEn.toLowerCase() === normalized.toLowerCase());
   if (namedCard) {
     return { type: namedCard.type, instanceId: `name-${namedCard.type}` };
   }

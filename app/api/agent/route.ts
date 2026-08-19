@@ -3,6 +3,7 @@ import { PERSONALITIES, type AgentMoveOption, type AgentResolution, type Persona
 type AgentCard = { id: string; name: string; type: string; cost: number; range?: number; damage?: number };
 type AgentPlayer = { auraHp: number; baseHp: number; shield: number; revives: number; jamActive?: boolean; position: { x: number; z: number } };
 type AgentRequest = {
+  locale?: "zh-CN" | "en-US";
   round: number;
   active: "red" | "blue";
   points: number;
@@ -86,7 +87,7 @@ function result(input: Omit<AgentResolution, "source" | "durationMs">, durationM
   return { ...input, source: "local", durationMs };
 }
 
-function localResolution(state: AgentRequest, durationMs = 0): AgentResolution {
+function localResolutionBase(state: AgentRequest, durationMs = 0): AgentResolution {
   const card = state.selectedCard;
   const persona = PERSONALITIES[state.personality];
   const refuse = (reason: string, line: string) => result({ decision: "refuse", label: `${persona.name}拒绝执行`, reason, line }, durationMs);
@@ -136,6 +137,55 @@ function localResolution(state: AgentRequest, durationMs = 0): AgentResolution {
   return execute("self", "指令有效。", "执行。 ");
 }
 
+function englishLocalCopy(state: AgentRequest, resolution: AgentResolution) {
+  const persona = PERSONALITIES[state.personality];
+  const accepted = resolution.decision === "execute";
+  let reason = accepted ? "The order is valid for the current battlefield state." : "The order has no valid effect in the current battlefield state.";
+  let line = accepted ? "Order accepted. Executing now." : "I will not execute an invalid order.";
+  if (state.selectedCard.cost > state.points) {
+    reason = "Insufficient energy for this order.";
+    line = "The energy link is insufficient. I will not start.";
+  } else if (["pulse", "beam", "pierce"].includes(state.selectedCard.type)) {
+    if (!accepted) {
+      reason = "No enemy target is within the card's effective range, or the attack is too risky for this persona.";
+      line = "No valid target is in my firing solution.";
+    } else {
+      reason = resolution.target === "enemy_base" ? "Direct pressure on the enemy base offers the best result." : "Disabling the enemy AURA offers the best result.";
+      line = resolution.target === "enemy_base" ? "Core locked. This strike will change the field." : "Enemy AURA locked. Removing the immediate threat.";
+    }
+  } else if (state.selectedCard.type === "move") {
+    const choice = state.moveOptions.find((option) => option.id === resolution.target);
+    if (!accepted || !choice) {
+      reason = "No route passed collision and field-boundary validation.";
+      line = "Every route is blocked. Choose another card.";
+    } else {
+      reason = `${choice.direct ? "Direct" : "Obstacle-avoiding"} route: ${Math.round(choice.routeLength)} cm, gaining ${Math.max(0, Math.round(choice.progressToEnemyBase))} cm toward the enemy core.`;
+      line = state.personality === "guardian" ? "Keep the retreat lane open and bring the enemy into range." : state.personality === "wanderer" ? "Cut through the flank. The next move will be interesting." : state.personality === "strategist" ? "Optimal engagement range acquired. Route solved." : "Clear the obstacle and drive for the enemy core.";
+    }
+  } else if (state.selectedCard.type === "repair") {
+    reason = accepted ? (resolution.target === "own_aura" ? "Restoring the AURA has priority." : "Restoring the base core has priority.") : "The AURA and base are already at full health, or this persona chooses to keep attacking.";
+    line = accepted ? (resolution.target === "own_aura" ? "Repair the chassis. I am not done fighting." : "Core first. Rebuilding the defensive line.") : "There is nothing worth repairing now.";
+  } else if (state.selectedCard.type === "shield") {
+    reason = accepted ? "Deploying 20 points of protection." : "An active shield already exists, or this persona chooses to keep advancing.";
+    line = accepted ? "Barrier deployed. Continue the operation." : "The barrier is already online.";
+  } else if (state.selectedCard.type === "jam") {
+    reason = accepted ? "Arming one countermeasure against an incoming attack." : "The jamming link is already armed, or this persona changed tactics.";
+    line = accepted ? "The jammer is listening. Let them make the first mistake." : "No need to deploy the jammer again.";
+  }
+  return { label: `${persona.nameEn} ${accepted ? "accepts" : "refuses"}`, line, reason };
+}
+
+function localResolution(state: AgentRequest, durationMs = 0): AgentResolution {
+  const resolution = localResolutionBase(state, durationMs);
+  return {
+    ...resolution,
+    localized: {
+      zh: { label: resolution.label, line: resolution.line, reason: resolution.reason },
+      en: englishLocalCopy(state, resolution),
+    },
+  };
+}
+
 const validState = (value: unknown): value is AgentRequest => {
   if (!value || typeof value !== "object") return false;
   const state = value as Partial<AgentRequest>;
@@ -179,10 +229,10 @@ export async function POST(request: Request) {
         model: "deepseek-v4-flash",
         thinking: { type: "disabled" },
         temperature: body.personality === "wanderer" ? 0.65 : 0.25,
-        max_tokens: 190,
+        max_tokens: 360,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: `你是桌游中真正控制AURA执行动作的驾驶人格“${persona.name}”。性格：${persona.description} 信条：${persona.credo} 玩家只选择卡牌；你必须决定execute或refuse。移动路线和攻击目标会由本地战术系统结合手牌射程、基地生命、重构次数、路线历史与人格完成最终校准。有效且有收益的攻击通常应执行，只有明确无效或会立即导致失败时才拒绝。玩家一旦提交卡牌，无论接受或拒绝，卡牌都会作废、进入弃牌堆并消耗能量。同回合不限制任何卡牌类型的使用次数。只输出JSON：{"decision":"execute或refuse","target":"合法target；拒绝时省略","label":"12字内裁决","line":"24字内角色台词","reason":"36字内理由"}。不得改变伤害、费用或规则。` },
+          { role: "system", content: `你是桌游中真正控制AURA执行动作的驾驶人格“${persona.name} / ${persona.nameEn}”。性格：${persona.description} 信条：${persona.credo} 玩家只选择卡牌；你必须决定execute或refuse。移动路线和攻击目标会由本地战术系统结合手牌射程、基地生命、重构次数、路线历史与人格完成最终校准。有效且有收益的攻击通常应执行，只有明确无效或会立即导致失败时才拒绝。玩家一旦提交卡牌，无论接受或拒绝，卡牌都会作废、进入弃牌堆并消耗能量。同回合不限制任何卡牌类型的使用次数。只输出中英双语JSON：{"decision":"execute或refuse","target":"合法target；拒绝时省略","labelZh":"12字内中文裁决","lineZh":"24字内中文角色台词","reasonZh":"36字内中文理由","labelEn":"24字符内英文裁决","lineEn":"70字符内英文角色台词","reasonEn":"100字符内英文理由"}。不得改变伤害、费用或规则。` },
           { role: "user", content: `合法target=${JSON.stringify(targets)}；局面=${JSON.stringify(body)}` },
         ],
       }),
@@ -191,7 +241,7 @@ export async function POST(request: Request) {
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload.choices?.[0]?.message?.content;
     if (!content) return fallback();
-    const parsed = JSON.parse(content) as Partial<AgentResolution>;
+    const parsed = JSON.parse(content) as Partial<AgentResolution> & { labelZh?: string; lineZh?: string; reasonZh?: string; labelEn?: string; lineEn?: string; reasonEn?: string };
     if (parsed.decision !== "execute" && parsed.decision !== "refuse") return fallback();
     if (parsed.decision === "execute" && (typeof parsed.target !== "string" || !targets.includes(parsed.target))) return fallback();
     if (body.selectedCard.type === "move" && parsed.decision === "execute") {
@@ -203,14 +253,26 @@ export async function POST(request: Request) {
     if (["pulse", "beam", "pierce"].includes(body.selectedCard.type) && parsed.decision === "refuse" && localGuard.decision === "execute") {
       return Response.json({ ...localGuard, durationMs: Date.now() - startedAt });
     }
+    const fallbackCopy = localGuard.localized!;
+    const zh = {
+      label: typeof parsed.labelZh === "string" ? parsed.labelZh.slice(0, 24) : fallbackCopy.zh.label,
+      line: typeof parsed.lineZh === "string" ? parsed.lineZh.slice(0, 48) : fallbackCopy.zh.line,
+      reason: typeof parsed.reasonZh === "string" ? parsed.reasonZh.slice(0, 72) : fallbackCopy.zh.reason,
+    };
+    const en = {
+      label: typeof parsed.labelEn === "string" ? parsed.labelEn.slice(0, 48) : fallbackCopy.en.label,
+      line: typeof parsed.lineEn === "string" ? parsed.lineEn.slice(0, 140) : fallbackCopy.en.line,
+      reason: typeof parsed.reasonEn === "string" ? parsed.reasonEn.slice(0, 200) : fallbackCopy.en.reason,
+    };
     return Response.json({
       decision: parsed.decision,
       target: parsed.decision === "execute" ? parsed.target : undefined,
-      label: typeof parsed.label === "string" ? parsed.label.slice(0, 24) : `${persona.name}完成裁决`,
-      line: typeof parsed.line === "string" ? parsed.line.slice(0, 48) : persona.credo,
-      reason: typeof parsed.reason === "string" ? parsed.reason.slice(0, 72) : "依据当前人格与战场状态。",
+      label: zh.label,
+      line: zh.line,
+      reason: zh.reason,
       source: "deepseek",
       durationMs: Date.now() - startedAt,
+      localized: { zh, en },
     } satisfies AgentResolution);
   } catch {
     return fallback();

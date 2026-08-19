@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { LocaleProvider } from "./lib/i18n";
 
 export const metadata: Metadata = {
   title: "AURA：双核协议",
@@ -13,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased"><LocaleProvider>{children}</LocaleProvider></body>
     </html>
   );
 }

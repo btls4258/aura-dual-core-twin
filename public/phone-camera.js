@@ -11,6 +11,26 @@ const detectorCanvas = document.createElement("canvas");
 const detectorContext = detectorCanvas.getContext("2d", { willReadFrequently: true });
 const detectorWorker = new Worker("/apriltag-worker.js");
 
+const staticCopy = {
+  title: ["AURA · 全局视野", "AURA · GLOBAL VISION"], auto: ["自动", "AUTO"], landscape: ["横屏 16:9", "LANDSCAPE 16:9"], portrait: ["竖屏 9:16", "PORTRAIT 9:16"],
+  start: ["开启摄像头", "START CAMERA"], switch: ["切换镜头", "SWITCH CAMERA"],
+  tips: ["手机本地识别 AprilTag，并将检测框、中心点和 Tag ID 同步给 Mac。建议先使用清晰打印的 tag36h11 测试码。", "The phone detects AprilTags locally and sends boxes, centers, and Tag IDs to the Mac. Start with a clearly printed tag36h11 test marker."],
+};
+let locale = localStorage.getItem("aura-camera-locale") === "en-US" ? "en-US" : "zh-CN";
+const text = (zh, en) => locale === "en-US" ? en : zh;
+const liveText = new Map();
+const setLiveText = (node, zh, en) => { liveText.set(node, [zh, en]); node.textContent = text(zh, en); };
+
+function applyLocale() {
+  document.documentElement.lang = locale;
+  document.title = text("AURA 全局摄像头", "AURA Global Camera");
+  document.querySelectorAll("[data-i18n]").forEach((node) => { const copy = staticCopy[node.dataset.i18n]; if (copy) node.textContent = text(...copy); });
+  document.querySelector(".guide").dataset.guide = text("完整画面预览 · 将整个桌面保持在框内", "FULL VIEW · KEEP THE ENTIRE TABLE INSIDE THE FRAME");
+  document.querySelector(".format-picker").setAttribute("aria-label", text("画面比例", "Video aspect ratio"));
+  liveText.forEach((copy, node) => { node.textContent = text(...copy); });
+  document.querySelector("#locale-toggle").textContent = locale === "en-US" ? "中" : "EN";
+}
+
 let facingMode = "environment";
 let stream;
 const peers = new Map();
@@ -21,7 +41,7 @@ let detectionEnabled = true;
 let detectionTimer;
 let latestDetections = [];
 
-const setStatus = (text) => { statusNode.textContent = text; };
+const setStatus = (zh, en = zh) => setLiveText(statusNode, zh, en);
 const modeButtons = [...document.querySelectorAll("[data-mode]")];
 let displayMode = localStorage.getItem("aura-camera-mode") || "auto";
 
@@ -84,17 +104,17 @@ function processFrame() {
 detectorWorker.onmessage = (event) => {
   const message = event.data;
   if (message.type === "ready") {
-    detectorReady = true; metricsNode.textContent = "检测器已就绪"; metricsNode.className = "ok"; scheduleDetection(0); return;
+    detectorReady = true; setLiveText(metricsNode, "检测器已就绪", "DETECTOR READY"); metricsNode.className = "ok"; scheduleDetection(0); return;
   }
   if (message.type === "error") {
-    detectorBusy = false; metricsNode.textContent = `识别错误：${message.message}`; metricsNode.className = ""; scheduleDetection(500); return;
+    detectorBusy = false; setLiveText(metricsNode, `识别错误：${message.message}`, `Detection error: ${message.message}`); metricsNode.className = ""; scheduleDetection(500); return;
   }
   if (message.type !== "detections") return;
   detectorBusy = false;
   latestDetections = message.detections ?? [];
   drawDetections(latestDetections, message.width, message.height);
   const ids = latestDetections.map((item) => item.id).join(", ");
-  metricsNode.textContent = `${latestDetections.length} 个 · ${Math.round(message.processingMs)} ms${ids ? ` · ID ${ids}` : ""}`;
+  setLiveText(metricsNode, `${latestDetections.length} 个 · ${Math.round(message.processingMs)} ms${ids ? ` · ID ${ids}` : ""}`, `${latestDetections.length} detected · ${Math.round(message.processingMs)} ms${ids ? ` · ID ${ids}` : ""}`);
   metricsNode.className = latestDetections.length ? "ok" : "";
   signal({
     type: "apriltag-detections",
@@ -113,8 +133,8 @@ async function makeOffer(viewerId = "legacy") {
   peer.onicecandidate = (event) => event.candidate && signal({ type: "ice", viewerId, candidate: event.candidate });
   peer.onconnectionstatechange = () => {
     const ok = peer.connectionState === "connected";
-    linkNode.textContent = ok ? "正在推流" : `链路 ${peer.connectionState}`; linkNode.className = ok ? "live" : "";
-    if (ok) setStatus("全局视频与 AprilTag 检测结果已发送到 Mac。");
+    setLiveText(linkNode, ok ? "正在推流" : `链路 ${peer.connectionState}`, ok ? "STREAMING" : `LINK ${peer.connectionState}`); linkNode.className = ok ? "live" : "";
+    if (ok) setStatus("全局视频与 AprilTag 检测结果已发送到 Mac。", "Global video and AprilTag results are streaming to the Mac.");
     if (["closed", "failed"].includes(peer.connectionState)) { peer.close(); peers.delete(viewerId); }
   };
   await peer.setLocalDescription(await peer.createOffer()); signal({ type: "offer", viewerId, offer: peer.localDescription });
@@ -122,7 +142,7 @@ async function makeOffer(viewerId = "legacy") {
 
 function openSocket() {
   socket?.close(); socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/signal/${room}/camera`);
-  socket.onopen = () => { linkNode.textContent = "等待 Mac"; signal({ type: "camera-ready" }); };
+  socket.onopen = () => { setLiveText(linkNode, "等待 Mac", "WAITING FOR MAC"); signal({ type: "camera-ready" }); };
   socket.onmessage = async (event) => {
     const message = JSON.parse(event.data);
     const viewerId = message.viewerId || "legacy"; const peer = peers.get(viewerId);
@@ -133,7 +153,7 @@ function openSocket() {
   };
   socket.onclose = () => {
     peers.forEach((peer) => peer.close()); peers.clear();
-    linkNode.textContent = "链路离线"; setTimeout(openSocket, 1500);
+    setLiveText(linkNode, "链路离线", "LINK OFFLINE"); setTimeout(openSocket, 1500);
   };
 }
 
@@ -143,8 +163,8 @@ async function start() {
     stream?.getTracks().forEach((track) => track.stop());
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } }, audio: false });
     video.srcObject = stream; await video.play(); fitOverlay();
-    setStatus("摄像头已开启，AprilTag 36h11 本地识别运行中。"); openSocket(); scheduleDetection(0);
-  } catch (error) { setStatus(`摄像头启动失败：${error.message}`); }
+    setStatus("摄像头已开启，AprilTag 36h11 本地识别运行中。", "Camera started. Local AprilTag 36h11 detection is running."); openSocket(); scheduleDetection(0);
+  } catch (error) { setStatus(`摄像头启动失败：${error.message}`, `Camera failed to start: ${error.message}`); }
 }
 
 modeButtons.forEach((button) => button.addEventListener("click", () => applyDisplayMode(button.dataset.mode)));
@@ -154,9 +174,19 @@ document.querySelector("#start").addEventListener("click", start);
 document.querySelector("#switch").addEventListener("click", async () => { facingMode = facingMode === "environment" ? "user" : "environment"; await start(); });
 detectToggle.addEventListener("click", () => {
   detectionEnabled = !detectionEnabled;
-  detectToggle.textContent = detectionEnabled ? "暂停识别" : "继续识别";
+  setLiveText(detectToggle, detectionEnabled ? "暂停识别" : "继续识别", detectionEnabled ? "PAUSE DETECTION" : "RESUME DETECTION");
   detectToggle.classList.toggle("detecting", detectionEnabled);
-  if (!detectionEnabled) { overlayContext.clearRect(0, 0, overlay.width, overlay.height); metricsNode.textContent = "识别已暂停"; }
+  if (!detectionEnabled) { overlayContext.clearRect(0, 0, overlay.width, overlay.height); setLiveText(metricsNode, "识别已暂停", "DETECTION PAUSED"); }
   else scheduleDetection(0);
 });
 detectToggle.classList.add("detecting");
+setStatus("点击“开启摄像头”，允许浏览器使用后置摄像头。", "Select Start Camera and allow access to the rear camera.");
+setLiveText(linkNode, "链路离线", "LINK OFFLINE");
+setLiveText(metricsNode, "检测器载入中", "LOADING DETECTOR");
+setLiveText(detectToggle, "暂停识别", "PAUSE DETECTION");
+document.querySelector("#locale-toggle").addEventListener("click", () => {
+  locale = locale === "en-US" ? "zh-CN" : "en-US";
+  localStorage.setItem("aura-camera-locale", locale);
+  applyLocale();
+});
+applyLocale();
