@@ -97,7 +97,7 @@ footer{height:18px;color:#677276;font-size:8px;letter-spacing:.04em}footer b{col
 .card-chip+.card-chip{margin-left:-19px}
 .card-chip:nth-child(3n+1){transform:rotate(-1.1deg)}.card-chip:nth-child(3n+2){transform:translateY(-1px)}.card-chip:nth-child(3n){transform:rotate(1.1deg)}
 .card-chip:hover,.card-chip.selected{z-index:20}
-.card-inspect-hint{position:absolute!important;left:50%;top:6px;z-index:4;transform:translate(-50%,-5px);padding:3px 5px!important;border-radius:3px;background:#05090bd9;color:#d9c392!important;font-size:7px!important;line-height:1!important;white-space:nowrap;opacity:0;transition:opacity .16s,transform .16s;pointer-events:none}
+.card-inspect-hint{position:absolute!important;left:50%;top:6px;z-index:4;transform:translate(-50%,-5px);padding:3px 2px!important;border-radius:3px;background:#05090bd9;color:#d9c392!important;font-size:7px!important;line-height:1!important;white-space:nowrap;opacity:0;transition:opacity .16s,transform .16s;pointer-events:none}
 .card-chip:hover .card-inspect-hint{opacity:1;transform:translate(-50%,0)}
 .pending-card-art{cursor:zoom-in}.preview-card-button{margin-left:auto;border:0;border-bottom:1px solid #816f48;background:transparent;color:#cbb477;padding:1px 0;font-size:7px;white-space:nowrap}.preview-card-button:hover{color:#fff0c9}
 .energy{position:relative}.energy-cost-fx{position:absolute;right:8px;top:50%;z-index:4;color:#ef9a75!important;font-size:15px!important;font-weight:800;font-style:normal;pointer-events:none;animation:energy-spend .75s ease-out both}
